@@ -38,6 +38,8 @@ from qtpy import QtCore, QtGui, QtWidgets
 M2_TO_FT2 = 10.7639     # 1 m^2 = 10.7639 ft^2
 M_TO_IN   = 39.3701     # 1 m = 39.3701 in
 M_TO_FT   = 3.28084     # 1 m = 3.28084 ft
+KG_TO_LB  = 2.20462     # 1 kg = 2.20462 lbm
+KG_M3_TO_LB_FT3 = KG_TO_LB / (M_TO_FT ** 3)  # 1 kg/m^3 = 0.062428 lbm/ft^3
 PI        = math.pi
 
 
@@ -243,9 +245,14 @@ class ParachuteGUI(QtWidgets.QWidget):
         self.cd_main_spin = LabeledSpin(0.2, 2.5, 0.05, 1.20)
         self.v_spin = LabeledSpin(0.5, 30.0, 0.1, 10.0, suffix="m/s")
 
-        form.addRow("g (gravitational acceleration)", self.g_spin)
-        form.addRow("m (dry mass)", self.m_spin)
-        form.addRow("rho_air (air density)", self.rho_spin)
+        self.g_imperial = QtWidgets.QLabel()
+        self.m_imperial = QtWidgets.QLabel()
+        self.rho_imperial = QtWidgets.QLabel()
+        self.v_imperial = QtWidgets.QLabel()
+
+        form.addRow("g (gravitational acceleration)", self._spin_with_imperial(self.g_spin, self.g_imperial))
+        form.addRow("m (dry mass)", self._spin_with_imperial(self.m_spin, self.m_imperial))
+        form.addRow("rho_air (air density)", self._spin_with_imperial(self.rho_spin, self.rho_imperial))
 
         # The Cd input that is shown depends on mode; we add both and toggle visibility
         self.cd_row_single = QtWidgets.QWidget()
@@ -264,7 +271,7 @@ class ParachuteGUI(QtWidgets.QWidget):
         form.addRow(self.cd_row_single)
         form.addRow(self.cd_row_dual)
 
-        form.addRow("V (target descent rate)", self.v_spin)
+        form.addRow("V (target descent rate)", self._spin_with_imperial(self.v_spin, self.v_imperial))
 
         # Compute + warnings
         self.warn_label = QtWidgets.QLabel()
@@ -299,7 +306,12 @@ class ParachuteGUI(QtWidgets.QWidget):
         # Signals
         self.mode_combo.currentTextChanged.connect(self._sync_mode)
         self.compute_btn.clicked.connect(self._on_compute)
+        self.g_spin.valueChanged.connect(self._update_imperial)
+        self.m_spin.valueChanged.connect(self._update_imperial)
+        self.rho_spin.valueChanged.connect(self._update_imperial)
+        self.v_spin.valueChanged.connect(self._update_imperial)
         self._sync_mode(self.mode_combo.currentText())
+        self._update_imperial()
 
     # ---- Behaviour ----
     def _sync_mode(self, mode: str):
@@ -307,6 +319,26 @@ class ParachuteGUI(QtWidgets.QWidget):
         self.cd_row_single.setVisible(is_single)
         self.cd_row_dual.setVisible(not is_single)
         self.drogue_frac_spin.setEnabled(not is_single)
+
+    def _spin_with_imperial(self, spin: QtWidgets.QDoubleSpinBox, label: QtWidgets.QLabel) -> QtWidgets.QWidget:
+        row = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(spin)
+        layout.addWidget(label)
+        layout.addStretch(1)
+        return row
+
+    def _update_imperial(self):
+        g_ft = self.g_spin.value() * M_TO_FT
+        m_lb = self.m_spin.value() * KG_TO_LB
+        rho_lb_ft3 = self.rho_spin.value() * KG_M3_TO_LB_FT3
+        v_ft = self.v_spin.value() * M_TO_FT
+
+        self.g_imperial.setText(f"≈ {g_ft:.2f} ft/s²")
+        self.m_imperial.setText(f"≈ {m_lb:.2f} lbm")
+        self.rho_imperial.setText(f"≈ {rho_lb_ft3:.4f} lbm/ft³")
+        self.v_imperial.setText(f"≈ {v_ft:.2f} ft/s")
 
     def _set_warning(self, text: str | None):
         self.warn_label.setText(text or "")
